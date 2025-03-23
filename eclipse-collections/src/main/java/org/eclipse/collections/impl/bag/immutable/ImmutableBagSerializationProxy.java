@@ -22,8 +22,6 @@ import org.eclipse.collections.impl.block.procedure.checked.CheckedObjectIntProc
 
 class ImmutableBagSerializationProxy<T> implements Externalizable
 {
-    private static final long serialVersionUID = 1L;
-
     private UnsortedBag<T> bag;
 
     @SuppressWarnings("UnusedDeclaration")
