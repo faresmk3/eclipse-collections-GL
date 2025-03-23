@@ -1708,109 +1708,8 @@ public class UnifiedSet<T>
     @Override
     public Iterator<T> iterator()
     {
-        return new PositionalIterator();
+        return new PositionalIterator(this);
     }
-
-    protected class PositionalIterator implements Iterator<T>
-    {
-        protected int count;
-        protected int position;
-        protected int chainPosition;
-        protected boolean lastReturned;
-
-        @Override
-        public boolean hasNext()
-        {
-            return this.count < UnifiedSet.this.size();
-        }
-
-        @Override
-        public void remove()
-        {
-            if (!this.lastReturned)
-            {
-                throw new IllegalStateException("next() must be called as many times as remove()");
-            }
-            this.count--;
-            UnifiedSet.this.occupied--;
-
-            if (this.chainPosition != 0)
-            {
-                this.removeFromChain();
-                return;
-            }
-
-            int pos = this.position - 1;
-            Object key = UnifiedSet.this.table[pos];
-            if (key instanceof ChainedBucket)
-            {
-                this.removeLastFromChain((ChainedBucket) key, pos);
-                return;
-            }
-            UnifiedSet.this.table[pos] = null;
-            this.position = pos;
-            this.lastReturned = false;
-        }
-
-        protected void removeFromChain()
-        {
-            ChainedBucket chain = (ChainedBucket) UnifiedSet.this.table[this.position];
-            chain.remove(--this.chainPosition);
-            this.lastReturned = false;
-        }
-
-        protected void removeLastFromChain(ChainedBucket bucket, int tableIndex)
-        {
-            bucket.removeLast(0);
-            if (bucket.zero == null)
-            {
-                UnifiedSet.this.table[tableIndex] = null;
-            }
-            this.lastReturned = false;
-        }
-
-        protected T nextFromChain()
-        {
-            ChainedBucket bucket = (ChainedBucket) UnifiedSet.this.table[this.position];
-            Object cur = bucket.get(this.chainPosition);
-            this.chainPosition++;
-            if (bucket.get(this.chainPosition) == null)
-            {
-                this.chainPosition = 0;
-                this.position++;
-            }
-            this.lastReturned = true;
-            return UnifiedSet.this.nonSentinel(cur);
-        }
-
-        @Override
-        public T next()
-        {
-            if (!this.hasNext())
-            {
-                throw new NoSuchElementException("next() called, but the iterator is exhausted");
-            }
-            this.count++;
-            Object[] table = UnifiedSet.this.table;
-            if (this.chainPosition != 0)
-            {
-                return this.nextFromChain();
-            }
-            while (table[this.position] == null)
-            {
-                this.position++;
-            }
-            Object cur = table[this.position];
-            if (cur instanceof ChainedBucket)
-            {
-                return this.nextFromChain();
-            }
-            this.position++;
-            this.lastReturned = true;
-            return UnifiedSet.this.nonSentinel(cur);
-        }
-    }
-
 
     @Override
     public <V> UnifiedSetMultimap<V, T> groupBy(
@@ -2119,7 +2018,7 @@ public class UnifiedSet<T>
         while (true);
     }
 
-    private T nonSentinel(Object key)
+    T nonSentinel(Object key)
     {
         return key == NULL_KEY ? null : (T) key;
     }
