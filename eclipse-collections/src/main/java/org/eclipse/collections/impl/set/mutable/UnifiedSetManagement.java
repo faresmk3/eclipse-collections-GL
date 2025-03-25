@@ -89,7 +89,7 @@ public class UnifiedSetManagement
         // If the current entry is not a bucket, wrap it in one:
         if (!(tableEntry instanceof ChainedBucket)) {
             this.table[index] = new ChainedBucket(tableEntry, realKey);
-            incrementAndRehashIfNeeded();
+            this.incrementAndRehashIfNeeded();
             return true;
         }
         ChainedBucket bucket = (ChainedBucket) tableEntry;
@@ -117,11 +117,11 @@ public class UnifiedSetManagement
             }
             if (fourthField == null) {
                 bucket.set(3, realKey);
-                incrementAndRehashIfNeeded();
+                this.incrementAndRehashIfNeeded();
                 return true;
             }
             bucket.set(3, new ChainedBucket(fourthField, realKey));
-            incrementAndRehashIfNeeded();
+            this.incrementAndRehashIfNeeded();
             return true;
         }
     }
