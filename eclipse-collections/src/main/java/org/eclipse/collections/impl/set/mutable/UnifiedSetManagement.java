@@ -77,19 +77,13 @@ public class UnifiedSetManagement
         return false;
     }
 
-    private void incrementAndRehashIfNeeded() {
-        if (++this.occupied > this.maxSize) {
-            this.rehash();
-        }
-    }
-
     private boolean chainedAdd(T key, int index) {
         Object realKey = UnifiedSet.toSentinelIfNull(key);
         Object tableEntry = this.table[index];
         // If the current entry is not a bucket, wrap it in one:
         if (!(tableEntry instanceof ChainedBucket)) {
             this.table[index] = new ChainedBucket(tableEntry, realKey);
-            this.incrementAndRehashIfNeeded();
+            this.unifiedSet.incrementAndRehashIfNeeded();
             return true;
         }
         ChainedBucket bucket = (ChainedBucket) tableEntry;
@@ -102,7 +96,7 @@ public class UnifiedSetManagement
                 }
                 if (currentField == null) {
                     bucket.set(i, realKey);
-                    incrementAndRehashIfNeeded();
+                    this.unifiedSet.incrementAndRehashIfNeeded();
                     return true;
                 }
             }
@@ -117,11 +111,11 @@ public class UnifiedSetManagement
             }
             if (fourthField == null) {
                 bucket.set(3, realKey);
-                this.incrementAndRehashIfNeeded();
+                this.unifiedSet.incrementAndRehashIfNeeded();
                 return true;
             }
             bucket.set(3, new ChainedBucket(fourthField, realKey));
-            this.incrementAndRehashIfNeeded();
+            this.unifiedSet.incrementAndRehashIfNeeded();
             return true;
         }
     }
