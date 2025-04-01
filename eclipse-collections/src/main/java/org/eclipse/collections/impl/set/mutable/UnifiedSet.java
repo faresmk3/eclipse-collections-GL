@@ -23,7 +23,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.RandomAccess;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrentElementrent.ExecutorService;
 
 import org.eclipse.collections.api.LazyIterable;
 import org.eclipse.collections.api.RichIterable;
@@ -73,13 +73,13 @@ public class UnifiedSet<T>
         @Override
         public boolean equals(Object obj)
         {
-            throw new RuntimeException("Possible corruption through unsynchronized concurrent modification.");
+            throw new RuntimeException("Possible corruption through unsynchronized concurrentElementrent modification.");
         }
 
         @Override
         public int hashCode()
         {
-            throw new RuntimeException("Possible corruption through unsynchronized concurrent modification.");
+            throw new RuntimeException("Possible corruption through unsynchronized concurrentElementrent modification.");
         }
 
         @Override
@@ -213,16 +213,16 @@ public class UnifiedSet<T>
         int end = sectionIndex == sectionCount - 1 ? set.length : start + sectionSize;
         for (int i = start; i < end; i++)
         {
-            Object cur = set[i];
-            if (cur != null)
+            Object currentElement = set[i];
+            if (currentElement != null)
             {
-                if (cur instanceof ChainedBucket)
+                if (currentElement instanceof ChainedBucket)
                 {
-                    this.chainedForEach((ChainedBucket) cur, procedure);
+                    this.chainedForEach((ChainedBucket) currentElement, procedure);
                 }
                 else
                 {
-                    procedure.value(this.nonSentinel(cur));
+                    procedure.value(this.nonSentinel(currentElement));
                 }
             }
         }
@@ -318,14 +318,14 @@ public class UnifiedSet<T>
     {
         for (int i = start; i < end; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                this.chainedForEach((ChainedBucket) cur, procedure);
+                this.chainedForEach((ChainedBucket) currentElement, procedure);
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                procedure.value(this.nonSentinel(cur));
+                procedure.value(this.nonSentinel(currentElement));
             }
         }
     }
@@ -365,14 +365,14 @@ public class UnifiedSet<T>
     {
         for (int i = 0; i < this.table.length; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                this.chainedForEachWith((ChainedBucket) cur, procedure, parameter);
+                this.chainedForEachWith((ChainedBucket) currentElement, procedure, parameter);
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                procedure.value(this.nonSentinel(cur), parameter);
+                procedure.value(this.nonSentinel(currentElement), parameter);
             }
         }
     }
@@ -469,14 +469,14 @@ public class UnifiedSet<T>
         int count = 0;
         for (int i = 0; i < this.table.length; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                count = this.chainedForEachWithIndex((ChainedBucket) cur, objectIntProcedure, count);
+                count = this.chainedForEachWithIndex((ChainedBucket) currentElement, objectIntProcedure, count);
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                objectIntProcedure.value(this.nonSentinel(cur), count++);
+                objectIntProcedure.value(this.nonSentinel(currentElement), count++);
             }
         }
     }
@@ -553,19 +553,19 @@ public class UnifiedSet<T>
     {
         int index = this.unifiedSetManagement.index(key);
 
-        Object cur = this.table[index];
-        if (cur == null)
+        Object currentElement = this.table[index];
+        if (currentElement == null)
         {
             return;
         }
-        if (cur instanceof ChainedBucket)
+        if (currentElement instanceof ChainedBucket)
         {
-            this.unifiedSetManagement.addIfFoundFromChain((ChainedBucket) cur, key, other);
+            this.unifiedSetManagement.addIfFoundFromChain((ChainedBucket) currentElement, key, other);
             return;
         }
-        if (this.nonNullTableObjectEquals(cur, key))
+        if (this.nonNullTableObjectEquals(currentElement, key))
         {
-            other.add(this.nonSentinel(cur));
+            other.add(this.nonSentinel(currentElement));
         }
     }
 
@@ -574,14 +574,14 @@ public class UnifiedSet<T>
     {
         for (int i = 0; i < this.table.length; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                return this.nonSentinel(((ChainedBucket) cur).zero);
+                return this.nonSentinel(((ChainedBucket) currentElement).zero);
             }
-            if (cur != null)
+            if (currentElement != null)
             {
-                return this.nonSentinel(cur);
+                return this.nonSentinel(currentElement);
             }
         }
         return null;
@@ -592,14 +592,14 @@ public class UnifiedSet<T>
     {
         for (int i = this.table.length - 1; i >= 0; i--)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                return this.getLast((ChainedBucket) cur);
+                return this.getLast((ChainedBucket) currentElement);
             }
-            if (cur != null)
+            if (currentElement != null)
             {
-                return this.nonSentinel(cur);
+                return this.nonSentinel(currentElement);
             }
         }
         return null;
@@ -696,18 +696,18 @@ public class UnifiedSet<T>
     {
         for (int i = start; i < end; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                Object chainedDetect = this.chainedDetect((ChainedBucket) cur, predicate);
+                Object chainedDetect = this.chainedDetect((ChainedBucket) currentElement, predicate);
                 if (chainedDetect != null)
                 {
                     return this.nonSentinel(chainedDetect);
                 }
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                T each = this.nonSentinel(cur);
+                T each = this.nonSentinel(currentElement);
                 if (predicate.accept(each))
                 {
                     return each;
@@ -734,15 +734,15 @@ public class UnifiedSet<T>
         int mask = this.table.length - 1;
         for (int j = 0; j < temp.length; j++)
         {
-            Object cur = temp[j];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = temp[j];
+            if (currentElement instanceof ChainedBucket)
             {
-                ChainedBucket bucket = (ChainedBucket) cur;
+                ChainedBucket bucket = (ChainedBucket) currentElement;
                 this.chainedTrimToSize(bucket, j, mask);
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                this.addForTrim(cur, j, mask);
+                this.addForTrim(currentElement, j, mask);
             }
         }
         return true;
@@ -792,8 +792,8 @@ public class UnifiedSet<T>
     private void addForTrim(Object key, int oldIndex, int mask)
     {
         int index = oldIndex & mask;
-        Object cur = this.table[index];
-        if (cur == null)
+        Object currentElement = this.table[index];
+        if (currentElement == null)
         {
             this.table[index] = key;
             return;
@@ -842,18 +842,18 @@ public class UnifiedSet<T>
     {
         for (int i = start; i < end; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                Object chainedDetect = this.chainedDetect((ChainedBucket) cur, predicate);
+                Object chainedDetect = this.chainedDetect((ChainedBucket) currentElement, predicate);
                 if (chainedDetect != null)
                 {
                     return Optional.of(this.nonSentinel(chainedDetect));
                 }
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                T each = this.nonSentinel(cur);
+                T each = this.nonSentinel(currentElement);
                 if (predicate.accept(each))
                 {
                     return Optional.of(each);
@@ -916,17 +916,17 @@ public class UnifiedSet<T>
     {
         for (int i = start; i < end; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                if (this.chainedShortCircuit((ChainedBucket) cur, predicate, expected))
+                if (this.chainedShortCircuit((ChainedBucket) currentElement, predicate, expected))
                 {
                     return onShortCircuit;
                 }
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                T each = this.nonSentinel(cur);
+                T each = this.nonSentinel(currentElement);
                 if (predicate.accept(each) == expected)
                 {
                     return onShortCircuit;
@@ -987,17 +987,17 @@ public class UnifiedSet<T>
     {
         for (int i = 0; i < this.table.length; i++)
         {
-            Object cur = this.table[i];
-            if (cur instanceof ChainedBucket)
+            Object currentElement = this.table[i];
+            if (currentElement instanceof ChainedBucket)
             {
-                if (this.chainedShortCircuitWith((ChainedBucket) cur, predicate2, parameter, expected))
+                if (this.chainedShortCircuitWith((ChainedBucket) currentElement, predicate2, parameter, expected))
                 {
                     return onShortCircuit;
                 }
             }
-            else if (cur != null)
+            else if (currentElement != null)
             {
-                T each = this.nonSentinel(cur);
+                T each = this.nonSentinel(currentElement);
                 if (predicate2.accept(each, parameter) == expected)
                 {
                     return onShortCircuit;
@@ -1230,19 +1230,19 @@ public class UnifiedSet<T>
     public T get(T key)
     {
         int index = this.unifiedSetManagement.index(key);
-        Object cur = this.table[index];
+        Object currentElement = this.table[index];
 
-        if (cur == null)
+        if (currentElement == null)
         {
             return null;
         }
-        if (cur instanceof ChainedBucket)
+        if (currentElement instanceof ChainedBucket)
         {
-            return this.chainedGet(key, (ChainedBucket) cur);
+            return this.chainedGet(key, (ChainedBucket) currentElement);
         }
-        if (this.nonNullTableObjectEquals(cur, key))
+        if (this.nonNullTableObjectEquals(currentElement, key))
         {
-            return (T) cur;
+            return (T) currentElement;
         }
         return null;
     }
@@ -1293,9 +1293,9 @@ public class UnifiedSet<T>
     public T put(T key)
     {
         int index = this.unifiedSetManagement.index(key);
-        Object cur = this.table[index];
+        Object currentElement = this.table[index];
 
-        if (cur == null)
+        if (currentElement == null)
         {
             this.table[index] = UnifiedSet.toSentinelIfNull(key);
             if (++this.occupied > this.maxSize)
@@ -1305,11 +1305,11 @@ public class UnifiedSet<T>
             return key;
         }
 
-        if (cur instanceof ChainedBucket || !this.nonNullTableObjectEquals(cur, key))
+        if (currentElement instanceof ChainedBucket || !this.nonNullTableObjectEquals(currentElement, key))
         {
             return this.chainedPut(key, index);
         }
-        return this.nonSentinel(cur);
+        return this.nonSentinel(currentElement);
     }
 
     private T chainedPut(T key, int index)
@@ -1390,20 +1390,20 @@ public class UnifiedSet<T>
     public T removeFromPool(T key)
     {
         int index = this.unifiedSetManagement.index(key);
-        Object cur = this.table[index];
-        if (cur == null)
+        Object currentElement = this.table[index];
+        if (currentElement == null)
         {
             return null;
         }
-        if (cur instanceof ChainedBucket)
+        if (currentElement instanceof ChainedBucket)
         {
-            return this.removeFromChainForPool((ChainedBucket) cur, key, index);
+            return this.removeFromChainForPool((ChainedBucket) currentElement, key, index);
         }
-        if (this.nonNullTableObjectEquals(cur, key))
+        if (this.nonNullTableObjectEquals(currentElement, key))
         {
             this.table[index] = null;
             this.occupied--;
-            return this.nonSentinel(cur);
+            return this.nonSentinel(currentElement);
         }
         return null;
     }
@@ -1534,9 +1534,9 @@ public class UnifiedSet<T>
         return key;
     }
 
-    private boolean nonNullTableObjectEquals(Object cur, T key)
+    private boolean nonNullTableObjectEquals(Object currentElement, T key)
     {
-        return cur == key || (cur == NULL_KEY ? key == null : cur.equals(key));
+        return currentElement == key || (currentElement == NULL_KEY ? key == null : currentElement.equals(key));
     }
 
     @Override
