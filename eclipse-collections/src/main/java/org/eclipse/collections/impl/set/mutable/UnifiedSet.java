@@ -124,7 +124,7 @@ public class UnifiedSet<T>
             throw new IllegalArgumentException("load factor cannot be greater than 1");
         }
         this.loadFactor = loadFactor;
-        this.init(this.fastCeil(initialCapacity / loadFactor));
+        this.init(this.computeCeilingValue(initialCapacity / loadFactor));
         this.bucket = new ChainedBucket();
     }
 
@@ -228,7 +228,7 @@ public class UnifiedSet<T>
         }
     }
 
-    private int fastCeil(float v)
+    private int computeCeilingValue(float v)
     {
         int possibleResult = (int) v;
         if (v - possibleResult > 0.0F)
@@ -719,13 +719,13 @@ public class UnifiedSet<T>
 
     public boolean trimToSize()
     {
-        if (this.table.length <= (this.fastCeil(this.occupied / this.loadFactor) << 1))
+        if (this.table.length <= (this.computeCeilingValue(this.occupied / this.loadFactor) << 1))
         {
             return false;
         }
 
         Object[] temp = this.table;
-        this.init(this.fastCeil(this.occupied / this.loadFactor));
+        this.init(this.computeCeilingValue(this.occupied / this.loadFactor));
         if (this.isEmpty())
         {
             return true;
