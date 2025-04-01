@@ -77,79 +77,49 @@ public class UnifiedSetManagement
         return false;
     }
 
-    private boolean chainedAdd(T key, int index)
-    {
-        Object realKey = this.toSentinelIfNull(key);
-        if (this.table[index] instanceof ChainedBucket)
-        {
-            ChainedBucket bucket = (ChainedBucket) this.table[index];
-            do
-            {
-                if (this.nonNullTableObjectEquals(bucket.zero, key))
-                {
+    private boolean chainedAdd(T key, int index) {
+        Object realKey = UnifiedSet.toSentinelIfNull(key);
+        Object tableEntry = this.table[index];
+        // If the current entry is not a bucket, wrap it in one:
+        if (!(tableEntry instanceof ChainedBucket)) {
+            this.table[index] = new ChainedBucket(tableEntry, realKey);
+            this.unifiedSet.incrementAndRehashIfNeeded();
+            return true;
+        }
+        ChainedBucket bucket = (ChainedBucket) tableEntry;
+        while (true) {
+            // Loop for the first three fields (indices 0, 1, 2)
+            for (int i = 0; i < 3; i++) {
+                Object currentField = bucket.get(i);
+                if (this.nonNullTableObjectEquals(currentField, key)) {
                     return false;
                 }
-                if (bucket.one == null)
-                {
-                    bucket.one = realKey;
-                    if (++this.occupied > this.maxSize)
-                    {
-                        this.rehash();
-                    }
+                if (currentField == null) {
+                    bucket.set(i, realKey);
+                    this.unifiedSet.incrementAndRehashIfNeeded();
                     return true;
                 }
-                if (this.nonNullTableObjectEquals(bucket.one, key))
-                {
-                    return false;
-                }
-                if (bucket.two == null)
-                {
-                    bucket.two = realKey;
-                    if (++this.occupied > this.maxSize)
-                    {
-                        this.rehash();
-                    }
-                    return true;
-                }
-                if (this.nonNullTableObjectEquals(bucket.two, key))
-                {
-                    return false;
-                }
-                if (bucket.three instanceof ChainedBucket)
-                {
-                    bucket = (ChainedBucket) bucket.three;
-                    continue;
-                }
-                if (bucket.three == null)
-                {
-                    bucket.three = realKey;
-                    if (++this.occupied > this.maxSize)
-                    {
-                        this.rehash();
-                    }
-                    return true;
-                }
-                if (this.nonNullTableObjectEquals(bucket.three, key))
-                {
-                    return false;
-                }
-                bucket.three = new ChainedBucket(bucket.three, realKey);
-                if (++this.occupied > this.maxSize)
-                {
-                    this.rehash();
-                }
+            }
+            // Handle the fourth field (index 3)
+            Object fourthField = bucket.get(3);
+            if (fourthField instanceof ChainedBucket) {
+                bucket = (ChainedBucket) fourthField;
+                continue;
+            }
+            if (this.nonNullTableObjectEquals(fourthField, key)) {
+                return false;
+            }
+            if (fourthField == null) {
+                bucket.set(3, realKey);
+                this.unifiedSet.incrementAndRehashIfNeeded();
                 return true;
             }
-            while (true);
+            bucket.set(3, new ChainedBucket(fourthField, realKey));
+            this.unifiedSet.incrementAndRehashIfNeeded();
+            return true;
         }
-        ChainedBucket newBucket = new ChainedBucket(this.table[index], realKey);
-        this.table[index] = newBucket;
-        if (++this.occupied > this.maxSize)
-        {
-            this.rehash();
-        }
-        return true;
     }
+
 
     private boolean chainContains(ChainedBucket bucket, T key)
     {
