@@ -1289,28 +1289,46 @@ public class UnifiedSet<T>
         while (true);
     }
 
-    @Override
-    public T put(T key)
-    {
-        int index = this.unifiedSetManagement.index(key);
-        Object cur = this.table[index];
+    public void insertElement(T key) {
+        int index = unifiedSetManagement.index(key);
+        Object current = this.table[index];
 
-        if (cur == null)
-        {
+        if (current == null) {
             this.table[index] = UnifiedSet.toSentinelIfNull(key);
-            if (++this.occupied > this.maxSize)
-            {
+            if (++this.occupied > this.maxSize) {
                 this.rehash();
             }
-            return key;
         }
-
-        if (cur instanceof ChainedBucket || !this.nonNullTableObjectEquals(cur, key))
-        {
-            return this.chainedPut(key, index);
+        else if (current instanceof ChainedBucket || !this.nonNullTableObjectEquals(current, key)) {
+            unifiedSetManagement.chainedAdd(key, index);
         }
-        return this.nonSentinel(cur);
     }
+
+    public T getElement(T key) {
+        int index = this.unifiedSetManagement.index(key);
+        Object current = this.table[index];
+
+        if (current == null) {
+            return null;
+        }
+        if (current instanceof ChainedBucket) {
+            return this.chainedGet(key, (ChainedBucket) current);
+        }
+        if (this.nonNullTableObjectEquals(current, key)) {
+            return this.nonSentinel(current);
+        }
+        return null;
+    }
+
+    public T getOrInsertElement(T key) {
+        T existing = this.getElement(key);
+        if (existing != null) {
+            return existing;
+        }
+        this.insertElement(key);
+        return key;
+    }
+
 
     private T chainedPut(T key, int index)
     {
