@@ -77,7 +77,7 @@ public class UnifiedSetManagement
         return false;
     }
 
-    private boolean chainedAdd(T key, int index) {
+    public boolean chainedAdd(T key, int index) {
         Object realKey = UnifiedSet.toSentinelIfNull(key);
         Object tableEntry = this.table[index];
         // If the current entry is not a bucket, wrap it in one:

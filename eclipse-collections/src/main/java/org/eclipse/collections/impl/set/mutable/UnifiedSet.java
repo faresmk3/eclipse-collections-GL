@@ -155,66 +155,6 @@ public class UnifiedSet<T>
         }
     }
 
-    @Beta
-    public ParallelUnsortedSetIterable<T> asParallel(ExecutorService executorService, int batchSize)
-    {
-        if (executorService == null)
-        {
-            throw new NullPointerException();
-        }
-        if (batchSize < 1)
-        {
-            throw new IllegalArgumentException();
-        }
-        return new UnifiedSetParallelUnsortedIterable(executorService, batchSize);
-    }
-
-    @Override
-    public T removeFromPool(T key)
-    {
-        int index = this.unifiedSetManagement.index(key);
-        Object currentElement = this.table[index];
-        if (currentElement == null)
-        {
-            return null;
-        }
-        if (currentElement instanceof ChainedBucket)
-        {
-            return this.removeFromChainForPool((ChainedBucket) currentElement, key, index);
-        }
-        if (this.nonNullTableObjectEquals(currentElement, key))
-        {
-            this.table[index] = null;
-            this.occupied--;
-            return this.nonSentinel(currentElement);
-        }
-        return null;
-    }
-
-    @Override
-    public T put(T key)
-    {
-        int index = this.unifiedSetManagement.index(key);
-        Object currentElement = this.table[index];
-
-        if (currentElement == null)
-        {
-            this.table[index] = UnifiedSet.toSentinelIfNull(key);
-            if (++this.occupied > this.maxSize)
-            {
-                this.rehash();
-            }
-            return key;
-        }
-
-        if (currentElement instanceof ChainedBucket || !this.nonNullTableObjectEquals(currentElement, key))
-        {
-            return this.chainedPut(key, index);
-        }
-        return this.nonSentinel(currentElement);
-    }
-
-
     public static <K> UnifiedSet<K> newSet()
     {
         return new UnifiedSet<>();
@@ -288,7 +228,15 @@ public class UnifiedSet<T>
         }
     }
 
-
+    private int computeCeilingValue(float v)
+    {
+        int possibleResult = (int) v;
+        if (v - possibleResult > 0.0F)
+        {
+            possibleResult++;
+        }
+        return possibleResult;
+    }
     @Override
     protected void rehash(int newCapacity)
     {
@@ -382,6 +330,36 @@ public class UnifiedSet<T>
         }
     }
 
+    private void chainedForEach(ChainedBucket bucket, Procedure<? super T> procedure)
+    {
+        do
+        {
+            procedure.value(this.nonSentinel(bucket.zero));
+            if (bucket.one == null)
+            {
+                return;
+            }
+            procedure.value(this.nonSentinel(bucket.one));
+            if (bucket.two == null)
+            {
+                return;
+            }
+            procedure.value(this.nonSentinel(bucket.two));
+            if (bucket.three == null)
+            {
+                return;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            procedure.value(this.nonSentinel(bucket.three));
+            return;
+        }
+        while (true);
+    }
+
     @Override
     public <P> void forEachWith(Procedure2<? super T, ? super P> procedure, P parameter)
     {
@@ -421,6 +399,69 @@ public class UnifiedSet<T>
         }
     }
 
+    private void writeExternalChain(ObjectOutput out, ChainedBucket bucket) throws IOException
+    {
+        do
+        {
+            out.writeObject(this.nonSentinel(bucket.zero));
+            if (bucket.one == null)
+            {
+                return;
+            }
+            out.writeObject(this.nonSentinel(bucket.one));
+            if (bucket.two == null)
+            {
+                return;
+            }
+            out.writeObject(this.nonSentinel(bucket.two));
+            if (bucket.three == null)
+            {
+                return;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            out.writeObject(this.nonSentinel(bucket.three));
+            return;
+        }
+        while (true);
+    }
+
+
+    private <P> void chainedForEachWith(
+            ChainedBucket bucket,
+            Procedure2<? super T, ? super P> procedure,
+            P parameter)
+    {
+        do
+        {
+            procedure.value(this.nonSentinel(bucket.zero), parameter);
+            if (bucket.one == null)
+            {
+                return;
+            }
+            procedure.value(this.nonSentinel(bucket.one), parameter);
+            if (bucket.two == null)
+            {
+                return;
+            }
+            procedure.value(this.nonSentinel(bucket.two), parameter);
+            if (bucket.three == null)
+            {
+                return;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            procedure.value(this.nonSentinel(bucket.three), parameter);
+            return;
+        }
+        while (true);
+    }
 
     @Override
     public void forEachWithIndex(ObjectIntProcedure<? super T> objectIntProcedure)
@@ -440,6 +481,35 @@ public class UnifiedSet<T>
         }
     }
 
+    private int chainedForEachWithIndex(ChainedBucket bucket, ObjectIntProcedure<? super T> procedure, int count)
+    {
+        do
+        {
+            procedure.value(this.nonSentinel(bucket.zero), count++);
+            if (bucket.one == null)
+            {
+                return count;
+            }
+            procedure.value(this.nonSentinel(bucket.one), count++);
+            if (bucket.two == null)
+            {
+                return count;
+            }
+            procedure.value(this.nonSentinel(bucket.two), count++);
+            if (bucket.three == null)
+            {
+                return count;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            procedure.value(this.nonSentinel(bucket.three), count++);
+            return count;
+        }
+        while (true);
+    }
 
     @Override
     public UnifiedSet<T> newEmpty()
@@ -479,6 +549,25 @@ public class UnifiedSet<T>
         return this.size() != oldSize;
     }
 
+    private void addIfFound(T key, UnifiedSet<T> other)
+    {
+        int index = this.unifiedSetManagement.index(key);
+
+        Object currentElement = this.table[index];
+        if (currentElement == null)
+        {
+            return;
+        }
+        if (currentElement instanceof ChainedBucket)
+        {
+            this.unifiedSetManagement.addIfFoundFromChain((ChainedBucket) currentElement, key, other);
+            return;
+        }
+        if (this.nonNullTableObjectEquals(currentElement, key))
+        {
+            other.add(this.nonSentinel(currentElement));
+        }
+    }
 
     @Override
     public T getFirst()
@@ -516,6 +605,28 @@ public class UnifiedSet<T>
         return null;
     }
 
+    private T getLast(ChainedBucket bucket)
+    {
+        while (bucket.three instanceof ChainedBucket)
+        {
+            bucket = (ChainedBucket) bucket.three;
+        }
+
+        if (bucket.three != null)
+        {
+            return this.nonSentinel(bucket.three);
+        }
+        if (bucket.two != null)
+        {
+            return this.nonSentinel(bucket.two);
+        }
+        if (bucket.one != null)
+        {
+            return this.nonSentinel(bucket.one);
+        }
+        assert bucket.zero != null;
+        return this.nonSentinel(bucket.zero);
+    }
 
     @Override
     public UnifiedSet<T> select(Predicate<? super T> predicate)
@@ -648,7 +759,83 @@ public class UnifiedSet<T>
             this.add((T) in.readObject());
         }
     }
+    private void chainedTrimToSize(ChainedBucket bucket, int oldIndex, int mask)
+    {
+        do
+        {
+            this.addForTrim(bucket.zero, oldIndex, mask);
+            if (bucket.one == null)
+            {
+                return;
+            }
+            this.addForTrim(bucket.one, oldIndex, mask);
+            if (bucket.two == null)
+            {
+                return;
+            }
+            this.addForTrim(bucket.two, oldIndex, mask);
+            if (bucket.three == null)
+            {
+                return;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            this.addForTrim(bucket.three, oldIndex, mask);
+            return;
+        }
+        while (true);
+    }
 
+    private void addForTrim(Object key, int oldIndex, int mask)
+    {
+        int index = oldIndex & mask;
+        Object currentElement = this.table[index];
+        if (currentElement == null)
+        {
+            this.table[index] = key;
+            return;
+        }
+        this.chainedAddForTrim(key, index);
+    }
+
+    private void chainedAddForTrim(Object key, int index)
+    {
+        if (this.table[index] instanceof ChainedBucket)
+        {
+            ChainedBucket bucket = (ChainedBucket) this.table[index];
+            do
+            {
+                if (bucket.one == null)
+                {
+                    bucket.one = key;
+                    return;
+                }
+                if (bucket.two == null)
+                {
+                    bucket.two = key;
+                    return;
+                }
+                if (bucket.three instanceof ChainedBucket)
+                {
+                    bucket = (ChainedBucket) bucket.three;
+                    continue;
+                }
+                if (bucket.three == null)
+                {
+                    bucket.three = key;
+                    return;
+                }
+                bucket.three = new ChainedBucket(bucket.three, key);
+                return;
+            }
+            while (true);
+        }
+        ChainedBucket newBucket = new ChainedBucket(this.table[index], key);
+        this.table[index] = newBucket;
+    }
 
     @Override
     protected Optional<T> detectOptional(Predicate<? super T> predicate, int start, int end)
@@ -676,6 +863,47 @@ public class UnifiedSet<T>
         return Optional.empty();
     }
 
+    private Object chainedDetect(ChainedBucket bucket, Predicate<? super T> predicate)
+    {
+        do
+        {
+            if (predicate.accept(this.nonSentinel(bucket.zero)))
+            {
+                return bucket.zero;
+            }
+            if (bucket.one == null)
+            {
+                return null;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.one)))
+            {
+                return bucket.one;
+            }
+            if (bucket.two == null)
+            {
+                return null;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.two)))
+            {
+                return bucket.two;
+            }
+            if (bucket.three == null)
+            {
+                return null;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.three)))
+            {
+                return bucket.three;
+            }
+            return null;
+        }
+        while (true);
+    }
 
     @Override
     protected boolean shortCircuit(
@@ -708,6 +936,46 @@ public class UnifiedSet<T>
         return atEnd;
     }
 
+    private boolean chainedShortCircuit(
+            ChainedBucket bucket,
+            Predicate<? super T> predicate,
+            boolean expected)
+    {
+        do
+        {
+            if (predicate.accept(this.nonSentinel(bucket.zero)) == expected)
+            {
+                return true;
+            }
+            if (bucket.one == null)
+            {
+                return false;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.one)) == expected)
+            {
+                return true;
+            }
+            if (bucket.two == null)
+            {
+                return false;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.two)) == expected)
+            {
+                return true;
+            }
+            if (bucket.three == null)
+            {
+                return false;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            return predicate.accept(this.nonSentinel(bucket.three)) == expected;
+        }
+        while (true);
+    }
 
     @Override
     protected <P> boolean shortCircuitWith(
@@ -739,7 +1007,47 @@ public class UnifiedSet<T>
         return atEnd;
     }
 
-
+    private <P> boolean chainedShortCircuitWith(
+            ChainedBucket bucket,
+            Predicate2<? super T, ? super P> predicate,
+            P parameter,
+            boolean expected)
+    {
+        do
+        {
+            if (predicate.accept(this.nonSentinel(bucket.zero), parameter) == expected)
+            {
+                return true;
+            }
+            if (bucket.one == null)
+            {
+                return false;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.one), parameter) == expected)
+            {
+                return true;
+            }
+            if (bucket.two == null)
+            {
+                return false;
+            }
+            if (predicate.accept(this.nonSentinel(bucket.two), parameter) == expected)
+            {
+                return true;
+            }
+            if (bucket.three == null)
+            {
+                return false;
+            }
+            if (bucket.three instanceof ChainedBucket)
+            {
+                bucket = (ChainedBucket) bucket.three;
+                continue;
+            }
+            return predicate.accept(this.nonSentinel(bucket.three), parameter) == expected;
+        }
+        while (true);
+    }
 
     @Override
     public ImmutableSet<T> toImmutable()
@@ -831,6 +1139,40 @@ public class UnifiedSet<T>
         return this.retainAllFromNonSet(iterable);
     }
 
+    private boolean retainAllFromNonSet(Iterable<?> iterable)
+    {
+        int retainedSize = Iterate.sizeOf(iterable);
+        UnifiedSet<T> retainedCopy = this.newEmpty(retainedSize);
+        for (Object key : iterable)
+        {
+            this.addIfFound((T) key, retainedCopy);
+        }
+        if (retainedCopy.size() < this.size())
+        {
+            this.maxSize = retainedCopy.maxSize;
+            this.occupied = retainedCopy.occupied;
+            this.table = retainedCopy.table;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean retainAllFromSet(Set<?> collection)
+    {
+        // TODO: turn iterator into a loop
+        boolean result = false;
+        Iterator<T> e = this.iterator();
+        while (e.hasNext())
+        {
+            if (!collection.contains(e.next()))
+            {
+                e.remove();
+                result = true;
+            }
+        }
+        return result;
+    }
+
     @Override
     public UnifiedSet<T> clone()
     {
@@ -844,6 +1186,10 @@ public class UnifiedSet<T>
         this.unifiedSetManagement.copyToArray(result);
         return result;
     }
+
+
+
+
 
     @Override
     public <T> T[] toArray(T[] array)
@@ -943,6 +1289,45 @@ public class UnifiedSet<T>
         while (true);
     }
 
+    public void insertElement(T key) {
+        int index = unifiedSetManagement.index(key);
+        Object current = this.table[index];
+
+        if (current == null) {
+            this.table[index] = UnifiedSet.toSentinelIfNull(key);
+            if(++this.occupied > this.maxSize) {
+                this.rehash();
+            }
+        } else if (current instanceof ChainedBucket || !this.nonNullTableObjectEquals(current, key)) {
+            unifiedSetManagement.chainedAdd(key, index);
+        }
+    }
+
+    public T getElement(T key) {
+        int index = this.unifiedSetManagement.index(key);
+        Object current = this.table[index];
+
+        if (current == null) {
+            return null;
+        }
+        if (current instanceof ChainedBucket) {
+            return this.chainedGet(key, (ChainedBucket) current);
+        }
+        if (this.nonNullTableObjectEquals(current, key)) {
+            return this.nonSentinel(current);
+        }
+        return null;
+    }
+
+    public T getOrInsertElement(T key) {
+        T existing = this.getElement(key);
+        if (existing != null) {
+            return existing;
+        }
+        this.insertElement(key);
+        return key;
+    }
+
 
     private T chainedPut(T key, int index)
     {
@@ -1018,7 +1403,27 @@ public class UnifiedSet<T>
         return key;
     }
 
-
+    @Override
+    public T removeFromPool(T key)
+    {
+        int index = this.unifiedSetManagement.index(key);
+        Object currentElement = this.table[index];
+        if (currentElement == null)
+        {
+            return null;
+        }
+        if (currentElement instanceof ChainedBucket)
+        {
+            return this.removeFromChainForPool((ChainedBucket) currentElement, key, index);
+        }
+        if (this.nonNullTableObjectEquals(currentElement, key))
+        {
+            this.table[index] = null;
+            this.occupied--;
+            return this.nonSentinel(currentElement);
+        }
+        return null;
+    }
 
     private T removeFromChainForPool(ChainedBucket bucket, T key, int index)
     {
@@ -1151,425 +1556,18 @@ public class UnifiedSet<T>
         return currentElement == key || (currentElement == NULL_KEY ? key == null : currentElement.equals(key));
     }
 
-
-    private int computeCeilingValue(float v)
+    @Override
+    @Beta
+    public ParallelUnsortedSetIterable<T> asParallel(ExecutorService executorService, int batchSize)
     {
-        int possibleResult = (int) v;
-        if (v - possibleResult > 0.0F)
+        if (executorService == null)
         {
-            possibleResult++;
+            throw new NullPointerException();
         }
-        return possibleResult;
-    }
-
-    private void chainedForEach(ChainedBucket bucket, Procedure<? super T> procedure)
-    {
-        do
+        if (batchSize < 1)
         {
-            procedure.value(this.nonSentinel(bucket.zero));
-            if (bucket.one == null)
-            {
-                return;
-            }
-            procedure.value(this.nonSentinel(bucket.one));
-            if (bucket.two == null)
-            {
-                return;
-            }
-            procedure.value(this.nonSentinel(bucket.two));
-            if (bucket.three == null)
-            {
-                return;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            procedure.value(this.nonSentinel(bucket.three));
-            return;
+            throw new IllegalArgumentException();
         }
-        while (true);
-    }
-
-
-    private boolean retainAllFromNonSet(Iterable<?> iterable)
-    {
-        int retainedSize = Iterate.sizeOf(iterable);
-        UnifiedSet<T> retainedCopy = this.newEmpty(retainedSize);
-        for (Object key : iterable)
-        {
-            this.addIfFound((T) key, retainedCopy);
-        }
-        if (retainedCopy.size() < this.size())
-        {
-            this.maxSize = retainedCopy.maxSize;
-            this.occupied = retainedCopy.occupied;
-            this.table = retainedCopy.table;
-            return true;
-        }
-        return false;
-    }
-
-    private boolean retainAllFromSet(Set<?> collection)
-    {
-        // TODO: turn iterator into a loop
-        boolean result = false;
-        Iterator<T> e = this.iterator();
-        while (e.hasNext())
-        {
-            if (!collection.contains(e.next()))
-            {
-                e.remove();
-                result = true;
-            }
-        }
-        return result;
-    }
-
-    private <P> boolean chainedShortCircuitWith(
-            ChainedBucket bucket,
-            Predicate2<? super T, ? super P> predicate,
-            P parameter,
-            boolean expected)
-    {
-        do
-        {
-            if (predicate.accept(this.nonSentinel(bucket.zero), parameter) == expected)
-            {
-                return true;
-            }
-            if (bucket.one == null)
-            {
-                return false;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.one), parameter) == expected)
-            {
-                return true;
-            }
-            if (bucket.two == null)
-            {
-                return false;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.two), parameter) == expected)
-            {
-                return true;
-            }
-            if (bucket.three == null)
-            {
-                return false;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            return predicate.accept(this.nonSentinel(bucket.three), parameter) == expected;
-        }
-        while (true);
-    }
-
-
-    private boolean chainedShortCircuit(
-            ChainedBucket bucket,
-            Predicate<? super T> predicate,
-            boolean expected)
-    {
-        do
-        {
-            if (predicate.accept(this.nonSentinel(bucket.zero)) == expected)
-            {
-                return true;
-            }
-            if (bucket.one == null)
-            {
-                return false;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.one)) == expected)
-            {
-                return true;
-            }
-            if (bucket.two == null)
-            {
-                return false;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.two)) == expected)
-            {
-                return true;
-            }
-            if (bucket.three == null)
-            {
-                return false;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            return predicate.accept(this.nonSentinel(bucket.three)) == expected;
-        }
-        while (true);
-    }
-
-
-    private Object chainedDetect(ChainedBucket bucket, Predicate<? super T> predicate)
-    {
-        do
-        {
-            if (predicate.accept(this.nonSentinel(bucket.zero)))
-            {
-                return bucket.zero;
-            }
-            if (bucket.one == null)
-            {
-                return null;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.one)))
-            {
-                return bucket.one;
-            }
-            if (bucket.two == null)
-            {
-                return null;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.two)))
-            {
-                return bucket.two;
-            }
-            if (bucket.three == null)
-            {
-                return null;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            if (predicate.accept(this.nonSentinel(bucket.three)))
-            {
-                return bucket.three;
-            }
-            return null;
-        }
-        while (true);
-    }
-
-    private void chainedTrimToSize(ChainedBucket bucket, int oldIndex, int mask)
-    {
-        do
-        {
-            this.addForTrim(bucket.zero, oldIndex, mask);
-            if (bucket.one == null)
-            {
-                return;
-            }
-            this.addForTrim(bucket.one, oldIndex, mask);
-            if (bucket.two == null)
-            {
-                return;
-            }
-            this.addForTrim(bucket.two, oldIndex, mask);
-            if (bucket.three == null)
-            {
-                return;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            this.addForTrim(bucket.three, oldIndex, mask);
-            return;
-        }
-        while (true);
-    }
-
-    private void addForTrim(Object key, int oldIndex, int mask)
-    {
-        int index = oldIndex & mask;
-        Object currentElement = this.table[index];
-        if (currentElement == null)
-        {
-            this.table[index] = key;
-            return;
-        }
-        this.chainedAddForTrim(key, index);
-    }
-
-    private void chainedAddForTrim(Object key, int index)
-    {
-        if (this.table[index] instanceof ChainedBucket)
-        {
-            ChainedBucket bucket = (ChainedBucket) this.table[index];
-            do
-            {
-                if (bucket.one == null)
-                {
-                    bucket.one = key;
-                    return;
-                }
-                if (bucket.two == null)
-                {
-                    bucket.two = key;
-                    return;
-                }
-                if (bucket.three instanceof ChainedBucket)
-                {
-                    bucket = (ChainedBucket) bucket.three;
-                    continue;
-                }
-                if (bucket.three == null)
-                {
-                    bucket.three = key;
-                    return;
-                }
-                bucket.three = new ChainedBucket(bucket.three, key);
-                return;
-            }
-            while (true);
-        }
-        ChainedBucket newBucket = new ChainedBucket(this.table[index], key);
-        this.table[index] = newBucket;
-    }
-
-
-    private T getLast(ChainedBucket bucket)
-    {
-        while (bucket.three instanceof ChainedBucket)
-        {
-            bucket = (ChainedBucket) bucket.three;
-        }
-
-        if (bucket.three != null)
-        {
-            return this.nonSentinel(bucket.three);
-        }
-        if (bucket.two != null)
-        {
-            return this.nonSentinel(bucket.two);
-        }
-        if (bucket.one != null)
-        {
-            return this.nonSentinel(bucket.one);
-        }
-        assert bucket.zero != null;
-        return this.nonSentinel(bucket.zero);
-    }
-
-
-    private void addIfFound(T key, UnifiedSet<T> other)
-    {
-        int index = this.unifiedSetManagement.index(key);
-
-        Object currentElement = this.table[index];
-        if (currentElement == null)
-        {
-            return;
-        }
-        if (currentElement instanceof ChainedBucket)
-        {
-            this.unifiedSetManagement.addIfFoundFromChain((ChainedBucket) currentElement, key, other);
-            return;
-        }
-        if (this.nonNullTableObjectEquals(currentElement, key))
-        {
-            other.add(this.nonSentinel(currentElement));
-        }
-    }
-
-
-    private int chainedForEachWithIndex(ChainedBucket bucket, ObjectIntProcedure<? super T> procedure, int count)
-    {
-        do
-        {
-            procedure.value(this.nonSentinel(bucket.zero), count++);
-            if (bucket.one == null)
-            {
-                return count;
-            }
-            procedure.value(this.nonSentinel(bucket.one), count++);
-            if (bucket.two == null)
-            {
-                return count;
-            }
-            procedure.value(this.nonSentinel(bucket.two), count++);
-            if (bucket.three == null)
-            {
-                return count;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            procedure.value(this.nonSentinel(bucket.three), count++);
-            return count;
-        }
-        while (true);
-    }
-
-
-    private void writeExternalChain(ObjectOutput out, ChainedBucket bucket) throws IOException
-    {
-        do
-        {
-            out.writeObject(this.nonSentinel(bucket.zero));
-            if (bucket.one == null)
-            {
-                return;
-            }
-            out.writeObject(this.nonSentinel(bucket.one));
-            if (bucket.two == null)
-            {
-                return;
-            }
-            out.writeObject(this.nonSentinel(bucket.two));
-            if (bucket.three == null)
-            {
-                return;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            out.writeObject(this.nonSentinel(bucket.three));
-            return;
-        }
-        while (true);
-    }
-
-
-    private <P> void chainedForEachWith(
-            ChainedBucket bucket,
-            Procedure2<? super T, ? super P> procedure,
-            P parameter)
-    {
-        do
-        {
-            procedure.value(this.nonSentinel(bucket.zero), parameter);
-            if (bucket.one == null)
-            {
-                return;
-            }
-            procedure.value(this.nonSentinel(bucket.one), parameter);
-            if (bucket.two == null)
-            {
-                return;
-            }
-            procedure.value(this.nonSentinel(bucket.two), parameter);
-            if (bucket.three == null)
-            {
-                return;
-            }
-            if (bucket.three instanceof ChainedBucket)
-            {
-                bucket = (ChainedBucket) bucket.three;
-                continue;
-            }
-            procedure.value(this.nonSentinel(bucket.three), parameter);
-            return;
-        }
-        while (true);
+        return new UnifiedSetParallelUnsortedIterable(executorService, batchSize);
     }
 }
